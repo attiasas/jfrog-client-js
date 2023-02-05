@@ -3,9 +3,14 @@ import { XrayClient } from './Xray/XrayClient';
 import { ArtifactoryClient } from './Artifactory/ArtifactoryClient';
 import { IClientSpecificConfig } from '../model/ClientSpecificConfig';
 
+import * as os from 'os';
+import crypto from 'crypto'; // Important - Don't import '*'. It'll import deprecated encryption methods
+
 export class JfrogClient {
     private static readonly ARTIFACTORY_SUFFIX: string = 'artifactory';
     private static readonly XRAY_SUFFIX: string = 'xray';
+
+    private static _clientId?: string = JfrogClient.getClientId();
 
     public constructor(private _jfrogConfig: IJfrogClientConfig) {
         if (!_jfrogConfig.platformUrl && !_jfrogConfig.xrayUrl && !_jfrogConfig.artifactoryUrl) {
@@ -15,7 +20,8 @@ export class JfrogClient {
 
     public artifactory(): ArtifactoryClient {
         return new ArtifactoryClient(
-            this.getSpecificClientConfig(JfrogClient.ARTIFACTORY_SUFFIX, this._jfrogConfig.artifactoryUrl)
+            this.getSpecificClientConfig(JfrogClient.ARTIFACTORY_SUFFIX, this._jfrogConfig.artifactoryUrl),
+            JfrogClient._clientId
         );
     }
 
@@ -49,5 +55,21 @@ export class JfrogClient {
 
     private static addTrailingSlashIfMissing(url: string): string {
         return url + (url.endsWith('/') ? '' : '/');
+    }
+
+    private static getClientId(): string | undefined {
+        let interfaces: os.NetworkInterfaceInfo[] | undefined = os.networkInterfaces().values;
+        if (interfaces) {
+            for (const networkInterface of interfaces) {
+                if (networkInterface.mac) {
+                    return this.hash('sha1', networkInterface.mac);
+                }
+            }
+        }
+        return undefined;
+    }
+
+    private static hash(algorithm: string, data: string): string {
+        return crypto.createHash(algorithm).update(data).digest('hex');
     }
 }
